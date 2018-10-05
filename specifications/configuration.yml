@@ -1,0 +1,7 @@
+specifications:
+- name: Virtualization
+  status: revision
+  spec_type: Profile
+  use_cases_url: https://www.github.com/openschemas/spec-virtualization
+  version: 0.0.1
+  parent_type: Thing

@@ -1,0 +1,242 @@
+# This is a CircleCI configuration that you can add to your Github repository,
+# and connect to CircleCI to generate your bioschema files! If you don't
+# define any custom variables, your files will be generated and available
+# as artifacts. If you define the GITHUB variables for a bot, we can put
+# them back to Github Pages for more programmatic use (and version control
+# archive)
+
+# Variables you can customize
+# OPENBASES_CONTAINER: is the container that will be used, see default section
+
+# The following variables are optional and will give you
+# additional deployments / functionality.
+
+# GITHUB_USER
+# GITHUB_EMAIL if defined, you can deploy your archive and site back to Github pages.
+# REPO_VERSION: derived from the sha, for naming the archive
+
+################################################################################
+# Functions
+################################################################################
+
+# Defaults
+defaults: &defaults
+  docker:
+    - image: docker:18.01.0-ce-git
+  working_directory: /tmp/src
+
+# Installation
+install: &install
+    name: Install parallel gzip, gettext, python3, openbases, and jq
+    command: |
+        apk add --no-cache pigz python3 gettext jq
+
+# Environment
+sourceenv: &sourceenv
+    name: Source environment variables from the BASH_ENV
+    command: source $BASH_ENV 
+
+schemaenv: &schemaenv
+    name: Define container and open bases names
+    command: |
+        # If not set, define OPENBASES_CONTAINER
+        if [ ! -n "${OPENBASES_CONTAINER:-}" ]; then
+            OPENBASES_CONTAINER="openschemas/schema-builder"
+        fi
+        # If not set, define REPO_VERSION
+        if [ ! -n "${REPO_VERSION:-}" ]; then
+            REPO_VERSION=$(echo "${CIRCLE_SHA1}" | cut -c1-10)
+        fi
+        echo "Open Bases OpenSchema builder is ${OPENBASES_CONTAINER}"
+        # export to bash environment
+        echo "export OPENBASES_CONTAINER=${OPENBASES_CONTAINER}" >> ${BASH_ENV}
+        echo "export REPO_VERSION=${REPO_VERSION}" >> ${BASH_ENV}
+        cat ${BASH_ENV}
+
+githubsetup: &githubsetup
+    name: Prepare Github account credentials
+    command: |
+        # Only proceed if we minimally have a Github email
+        if [[ -n "${GITHUB_EMAIL:-}" ]];
+            then
+                echo "Preparing Github account credentials"
+                git config --global user.email $GITHUB_EMAIL
+                # If username is defined, use it (otherwuse use circle project)
+                if [[ -n "${GITHUB_USER:-}" ]];
+                    then
+                    git config --global user.name $GITHUB_USER
+                else
+                    git config --global user.name $CIRCLE_PROJECT_USERNAME
+                fi
+        fi
+
+
+schema: &schema
+    name: use openschema/schema-builder docker container to generate specifications
+    command: |
+        source ${BASH_ENV}
+        cd /tmp/src
+        echo "0. Pulling latest OpenBases Schema Builder!"
+        echo "docker pull ${OPENBASES_CONTAINER}"
+        docker pull ${OPENBASES_CONTAINER}
+        echo "1. Starting OpenBases Schema Builder!"
+        echo "docker run --name schema  --entrypoint bash -dt ${OPENBASES_CONTAINER}"
+        docker run --name schema  --entrypoint bash -dt "${OPENBASES_CONTAINER}"
+        docker exec schema rm -rf /data/*
+        docker exec schema mkdir --p /data/specifications
+        echo "2. Copying specification files for Open Bases schema..."
+        echo "docker cp ./specifications/. schema:/data/specifications"
+        docker cp ./specifications/. schema:/data/specifications
+        echo "docker cp ./specifications/configuration.yml schema:/data/configuration.yml"
+        docker cp ./specifications/configuration.yml schema:/data/configuration.yml
+        echo "3. Generating specification files!"
+        echo "Files in /data"
+        docker exec schema ls /data
+        echo "docker exec schema map2model --config /data/configuration.yml --folder /data/specifications --output /data/output"
+        docker exec schema map2model --config /data/configuration.yml --folder /data/specifications --output /data/output
+        echo "4. Obtaining finished files"
+        mkdir -p /tmp/specifications
+        echo "docker cp schema:/data/output/. /tmp/specifications"
+        docker cp schema:/data/output/. /tmp/specifications/
+        echo "5. Creating archive."
+        echo "tar czf specs.tar.gz /tmp/specifications"
+        tar czf "specs-${REPO_VERSION}.tar.gz" /tmp/specifications
+        mv "specs-${REPO_VERSION}.tar.gz" /tmp/specifications
+        echo "6. Stopping schema container..."
+        docker stop schema
+        echo "Contents of /tmp"
+        ls /tmp
+        echo "Contents of /tmp/specifications"
+        ls /tmp/specifications
+
+################################################################################
+# Jobs
+################################################################################
+
+
+version: 2
+jobs:
+  setup:
+    <<: *defaults
+    steps:
+      - run: *schemaenv
+      - run: *install
+      - run: *githubsetup
+
+  build:
+    <<: *defaults
+    steps:
+      - run: *install
+      - setup_remote_docker
+      - checkout
+      - run: *schemaenv
+      - run: *schema
+      - store_artifacts:
+          path: /tmp/specifications
+          destination: specs
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - src
+            - specifications
+
+  manifest:
+    <<: *defaults
+    steps:
+      - attach_workspace:
+          at: /tmp
+      - run: *schemaenv
+      - run: *githubsetup
+      - run: *install
+      - run:
+          name: Generate Archive of Specs, and Deploy to gh-pages
+          no_output_timeout: 40m
+          command: |
+            source ${BASH_ENV}
+            ls /tmp
+            ls /tmp/specifications
+            mkdir -p ${HOME}/.ssh
+            if [[ -n "${GITHUB_EMAIL:-}" ]];
+                then
+                    echo "=== Deploying site to Github Pages ==="
+                    echo "1. Checking out Github pages branch"
+                    ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+                    git clone "git@github.com:${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}.git" out
+                    cd out
+                    # either checkout github pages, or create orphan
+                    git checkout gh-pages || git checkout --orphan gh-pages
+                    mkdir -p ../out-old/archive
+                    mkdir -p archive
+                    mkdir -p _specifications
+                    cp -R _specifications ../out-old/
+                    # Keep archive contents
+                    for ext in tar.gz html
+                        do
+                        if /bin/bash -c "ls archive/*.${ext}" 1> /dev/null 2>&1; then
+                                /bin/bash -c "cp archive/*.${ext} ../out-old/archive" 
+                        fi
+                        if /bin/bash -c "ls _specifications/*.${ext}" 1> /dev/null 2>&1; then
+                                /bin/bash -c "cp _specifications/*.${ext} ../out-old/_specifications/" 
+                        fi
+                    done                    
+                    git rm -rf .
+                    # ensure that github pages are ignored
+                    mkdir -p .circleci && cp -a ../.circleci/. .circleci/.
+                    # Copy back previous files to archive
+                    mv ../out-old/archive ${PWD}
+                    mv ../out-old/_specifications ${PWD}
+                    mkdir -p _yaml
+                    echo "2. Preparing template..."
+                    # Add latest to archive
+                    mv /tmp/specifications/specs-${REPO_VERSION}.tar.gz archive/
+                    cp archive/specs-${REPO_VERSION}.tar.gz archive/specs-latest.tar.gz
+                    # Add build folders
+                    for folder in `ls /tmp/specifications`
+                        do
+                            if [[ -f "_specifications/${folder}.html" ]];
+                                then
+                                    rm _specifications/${folder}.html
+                                    rm -rf "_specifications/${folder}"
+                            fi
+                            echo "Moving /tmp/specifications/${folder} to _specifications"
+                            mv "/tmp/specifications/${folder}/${folder}.html" "_specifications/"
+                            mv "/tmp/specifications/${folder}/${folder}.yml" _yaml/
+                    done
+                    # Copy jekyll templates to static
+                    cp -R /tmp/src/.circleci/_includes _includes
+                    cp -R /tmp/src/.circleci/_layouts _layouts
+                    cp /tmp/src/.circleci/_config.yml _config.yml
+                    cp /tmp/src/.circleci/specifications.md specifications.md
+                    git add -A;
+                    git commit -m "Automated deployment to GitHub Pages ${CIRCLE_SHA1}" --allow-empty
+                    git push origin gh-pages
+            else
+                echo "GITHUB_EMAIL not set, skipping manifest deploy to Github pages"
+            fi
+
+
+################################################################################
+# Workflows
+################################################################################
+
+
+workflows:
+  version: 2
+  build_deploy:
+    jobs:
+      - build:
+          filters:
+            branches:
+              ignore: gh-pages
+            tags:
+              only: /.*/
+
+      # Push the manifest back to Github pages
+      - manifest:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
+            tags:
+              only: /.*/
