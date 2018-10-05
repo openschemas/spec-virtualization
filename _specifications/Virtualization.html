@@ -1,0 +1,125 @@
+---
+description: This Virtualization profile specification presents a an abstract representation
+  of virtualization used in a computational environment.
+edit_url: https://github.com/openschemas/specifications/tree/master/Virtualization/specification.html
+gh_folder: https://github.com/openschemas/specifications/tree/master/Virtualization
+gh_tasks: https://github.com/openschemas/specifications/labels/type%3A%20Virtualization
+hierarchy:
+- Thing
+mapping:
+- bsc_description: The additional type is defined at http://security.polito.it/ontology/
+  cardinality: ONE
+  controlled_vocab: https://github.com/Vocamp/computationalEnvironmentODP/blob/master/data/ComputationalEnvironment.rdf
+  description: An additional type for the item, typically used for adding more specific
+    types from external vocabularies in microdata syntax. This is a relationship between
+    something and a class that the thing is in. In RDFa syntax, it is better to use
+    the native RDFa syntax - the 'typeof' attribute - for multiple types. Schema.org
+    tools may have only weaker understanding of extra types, in particular those defined
+    externally.
+  example: ''
+  expected_types:
+  - URL
+  marginality: Optional
+  parent: Thing
+  property: additionalType
+  type: external
+  type_url: http://security.polito.it/ontology/
+- bsc_description: ''
+  cardinality: MANY
+  controlled_vocab: ''
+  description: An alias for the item.
+  example: ''
+  expected_types:
+  - Text
+  marginality: Recommended
+  parent: Thing
+  property: alternateName
+  type: ''
+  type_url: ''
+- bsc_description: A description of the virtualization technology
+  cardinality: ONE
+  controlled_vocab: ''
+  description: A description of the item.
+  example: ''
+  expected_types:
+  - Text
+  marginality: Minimum
+  parent: Thing
+  property: description
+  type: ''
+  type_url: ''
+- bsc_description: An identifier for the virtualization technology.
+  cardinality: ONE
+  controlled_vocab: ''
+  description: The identifier property represents any kind of identifier for any kind
+    of <a class="localLink" href="http://schema.org/Thing">Thing</a>, such as ISBNs,
+    GTIN codes, UUIDs etc. Schema.org provides dedicated properties for representing
+    many of these, either as textual strings or as URL (URI) links. See <a href="http://schema.org/docs/datamodel.html#identifierBg">background
+    notes</a> for more details.
+  example: ''
+  expected_types:
+  - PropertyValue
+  - Text
+  - URL
+  marginality: Recommended
+  parent: Thing
+  property: identifier
+  type: ''
+  type_url: ''
+- bsc_description: The name of the virtualization technology
+  cardinality: ONE
+  controlled_vocab: ''
+  description: The name of the item.
+  example: ''
+  expected_types:
+  - Text
+  marginality: Minimum
+  parent: Thing
+  property: name
+  type: ''
+  type_url: ''
+- bsc_description: A url associated with the virtualization technology.
+  cardinality: ONE
+  controlled_vocab: ''
+  description: URL of the item.
+  example: ''
+  expected_types:
+  - URL
+  marginality: Minimum
+  parent: Thing
+  property: url
+  type: ''
+  type_url: ''
+name: Virtualization
+parent_type: Thing
+spec_info:
+  description: This Virtualization profile specification presents a an abstract representation
+    of virtualization used in a computational environment.
+  full_example: https://www.github.com/openschemas/specifications/tree/master/Virtualization/examples/
+  version: 0.0.1
+  version_date: 20181005T181446
+spec_type: Profile
+status: revision
+subtitle: Openschemas specification to describe Virtualization technology
+use_cases_url: https://www.github.com/openschemas/spec-virtualization
+version: 0.0.1
+---
+<!DOCTYPE HTML>
+<html>
+   {% include head.html %}
+   <body>
+      {% include header.html %}
+      {% include navbar.html %}
+      <div class="page-content">
+         <div class="wrapper">
+            <div id="main-content-wrapper" class="outer">
+               <section id="main_content" class="inner">
+                  {% include profile_start.html %}
+                  {% include specification_table.html %}
+               </section>
+            </div>
+         </div>
+      </div>
+      {% include footer.html %}
+   </body>
+</html>
